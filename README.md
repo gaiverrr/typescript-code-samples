@@ -162,16 +162,6 @@ validator.isValidIBAN('ES9121000418...');  // Full MOD-97 validation
 - **class-validator** - DTO validation
 - **class-transformer** - Object transformation
 
-## Skills Demonstrated
-
-| Category | Skills |
-|----------|--------|
-| **TypeScript** | Generics, Type Guards, Const Assertions, Strict Null Checks |
-| **Patterns** | Factory, Fluent API, Decorator, Strategy |
-| **NestJS** | Custom Decorators, Exception Filters, DI Scopes |
-| **Security** | PII Masking, Crypto Randomness, Input Validation |
-| **Clean Code** | SRP, Immutability, DRY, `unknown` over `any` |
-
 ## License
 
 MIT
