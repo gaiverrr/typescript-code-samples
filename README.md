@@ -13,7 +13,9 @@ This repository contains production-grade code samples showcasing:
 
 ## Modules
 
-### 1. Error Handling Framework
+### Error Handling
+
+#### 1. Custom Error Framework
 [`src/error-handling/app-error.ts`](src/error-handling/app-error.ts)
 
 Type-safe, fluent API error system with proper stack traces.
@@ -21,137 +23,263 @@ Type-safe, fluent API error system with proper stack traces.
 ```typescript
 const NotFoundError = createErrorClass<{ userId: string }>('NotFound');
 
-throw new NotFoundError({ userId: '123' });
-
-// Or with fluent API
 new NotFoundError({ userId: '123' })
   .setStatus(404)
   .mergeData({ reason: 'User deleted' })
   .raise();
 ```
 
-**Highlights:**
-- ES6 class inheritance with `Error.captureStackTrace()`
-- Generic type parameter for error data
-- Fluent setter methods
-
 ---
 
-### 2. Validation Decorator
+### Decorators
+
+#### 2. Composite Auth Decorator
+[`src/decorators/composite-auth.decorator.ts`](src/decorators/composite-auth.decorator.ts)
+
+Combines multiple NestJS decorators into a single reusable auth decorator.
+
+```typescript
+@Auth(AuthScopes.admin)
+@Get('admin-only')
+getAdminData() { ... }
+
+@Public()
+@Get('health')
+healthCheck() { ... }
+```
+
+#### 3. Custom Validation Decorators
+[`src/decorators/custom-validators.decorator.ts`](src/decorators/custom-validators.decorator.ts)
+
+Cross-property validation with class-validator.
+
+```typescript
+class RegisterDto {
+  @IsString() password: string;
+
+  @Match('password')
+  confirmPassword: string;
+
+  @IsDate() startDate: Date;
+
+  @IsAfter('startDate')
+  endDate: Date;
+}
+```
+
+#### 4. Transform Decorators
+[`src/decorators/transform.decorator.ts`](src/decorators/transform.decorator.ts)
+
+Reusable class-transformer decorators.
+
+```typescript
+class FilterDto {
+  @TransformToBoolean() isActive: boolean;
+  @TransformToArray() tags: string[];
+  @TransformToInt() page: number;
+  @TransformToLowerCase() email: string;
+}
+```
+
+#### 5. Parameter Decorators
+[`src/decorators/param.decorator.ts`](src/decorators/param.decorator.ts)
+
+Custom parameter extractors for clean controller signatures.
+
+```typescript
+@Get('profile')
+getProfile(
+  @GetUser() user: CurrentUser,
+  @GetTenantId() tenantId: string,
+  @GetPagination() pagination: PaginationParams,
+) { ... }
+```
+
+#### 6. Validation Pipeline Decorator
 [`src/decorators/validate-input.ts`](src/decorators/validate-input.ts)
 
-Method decorator for automatic DTO validation using class-validator.
+Method decorator for automatic DTO validation.
 
 ```typescript
-class CreateUserDto {
-  @IsEmail() email: string;
-  @MinLength(8) password: string;
-}
-
 class UserService {
   @ValidateInput(CreateUserDto)
-  async createUser(data: CreateUserDto) {
-    // data is validated before execution
-  }
+  async createUser(data: CreateUserDto) { ... }
 }
 ```
 
-**Highlights:**
-- `ClassConstructor<T>` for type safety
-- Recursive error extraction for nested DTOs
-- Async validation support
-
 ---
 
-### 3. Global Exception Filter
-[`src/filters/global-exception.filter.ts`](src/filters/global-exception.filter.ts)
+### Guards
 
-Production-grade NestJS exception filter with standardized responses.
+#### 7. Environment Guard
+[`src/guards/environment.guard.ts`](src/guards/environment.guard.ts)
+
+Guards endpoints based on deployment environment.
 
 ```typescript
-// Response format
-{
-  "timestamp": "2024-01-15T10:30:00.000Z",
-  "errorTraceId": "ERR-A7K3M9P2",
-  "requestTraceId": "req-123",
-  "status": 400,
-  "error": {
-    "name": "ValidationError",
-    "data": { ... }
+@TestOnly()
+@Post('seed-data')
+seedTestData() { ... }
+
+@BlockedIn(Environment.PRODUCTION)
+@Delete('reset-database')
+resetDatabase() { ... }
+```
+
+---
+
+### Interceptors
+
+#### 8. Trace Context Interceptor
+[`src/interceptors/trace-context.interceptor.ts`](src/interceptors/trace-context.interceptor.ts)
+
+Distributed tracing with request metadata capture.
+
+```typescript
+// Automatically adds:
+// - X-Request-Id header
+// - X-Response-Time header
+// - Client platform detection
+// - Request timing
+```
+
+---
+
+### Context
+
+#### 9. Request Context Service
+[`src/context/request-context.service.ts`](src/context/request-context.service.ts)
+
+Request-scoped context management.
+
+```typescript
+@Injectable()
+export class UserService {
+  constructor(private readonly ctx: RequestContextService) {}
+
+  getCurrentUser() {
+    return this.ctx.user;
+  }
+
+  hasAdminAccess() {
+    return this.ctx.hasRole('admin');
   }
 }
 ```
 
-**Highlights:**
-- Type guards for error discrimination
-- Cryptographically secure trace IDs
-- Conditional stack trace exposure
+---
+
+### Builders
+
+#### 10. Entity Builder
+[`src/builders/entity.builder.ts`](src/builders/entity.builder.ts)
+
+Fluent builder pattern for entity construction.
+
+```typescript
+const user = new EntityBuilder<User>()
+  .set({ name: 'John', email: 'john@example.com' })
+  .setProperty('age', 30)
+  .build();
+
+// With defaults
+class UserBuilder extends DefaultsEntityBuilder<User> {
+  protected getDefaults() {
+    return { role: 'user', isActive: true };
+  }
+}
+```
 
 ---
 
-### 4. Utility Helper
+### Pipes
+
+#### 11. Validation Pipes
+[`src/pipes/defined-params.pipe.ts`](src/pipes/defined-params.pipe.ts)
+
+Custom pipes for parameter validation.
+
+```typescript
+@Get(':id')
+findOne(@Param('id', DefinedParamPipe) id: string) { ... }
+
+@Get('items')
+findMany(
+  @Query('ids', ParseArrayPipe) ids: string[],
+  @Query('status', new EnumValidationPipe(['active', 'inactive'])) status: string,
+) { ... }
+```
+
+---
+
+### Helpers
+
+#### 12. JWT Helper
+[`src/helpers/jwt.helper.ts`](src/helpers/jwt.helper.ts)
+
+JWT token generation, parsing, and validation.
+
+```typescript
+const jwtHelper = new JwtHelper();
+
+const token = jwtHelper.generateHS256({ sub: 'user123' }, secret, '1h');
+const payload = jwtHelper.verify(token, secret);
+const isExpired = jwtHelper.isExpired(token);
+```
+
+#### 13. Deferred Promise
+[`src/helpers/deferred.ts`](src/helpers/deferred.ts)
+
+Promise with externally accessible resolve/reject.
+
+```typescript
+const deferred = defer<string>();
+
+// Later...
+deferred.resolve('success');
+
+// With timeout
+const withTimeout = deferWithTimeout<string>(5000);
+```
+
+#### 14. Utils Helper
 [`src/utils/utils.helper.ts`](src/utils/utils.helper.ts)
 
-Security-conscious utilities for common operations.
+Security-conscious utilities.
 
 ```typescript
-// Pure functions
 const id = generateTrackingId('USR'); // "USR-A7K3M"
-await delay(1000);
-
-// Injectable service
-const helper = new UtilsHelper();
-const value = helper.getValue<string>(obj, 'user.profile.name');
 const masked = helper.mask({ password: 'secret', name: 'John' });
 // { password: '*****', name: 'John' }
 ```
 
-**Highlights:**
-- `Set` for O(1) lookups
-- PII masking for GDPR compliance
-- Cryptographically secure randomness
-
 ---
 
-### 5. Object Diff
+### Other
+
+#### 15. Object Diff
 [`src/diff/object-diff.ts`](src/diff/object-diff.ts)
 
-Deep object comparison with detailed change tracking.
+Deep object comparison with change tracking.
 
 ```typescript
-const changes = diff(
-  { name: 'John', age: 30 },
-  { name: 'Jane', age: 30 },
-  'user'
-);
-// { user: [{ description: 'Value changed', oldValue: 'John', newValue: 'Jane' }] }
+const changes = diff(oldUser, newUser, 'user');
 ```
 
-**Highlights:**
-- Deep array comparison via serialization
-- Tracks added/removed/changed properties
-- Type-safe with `DiffResult` type
-
----
-
-### 6. Document Validators
+#### 16. Document Validators
 [`src/validators/document.validator.ts`](src/validators/document.validator.ts)
 
-International document validation with checksum algorithms.
+International document validation with checksums.
 
 ```typescript
-const validator = new DocumentValidator();
-
 validator.isValidDNI('12345678Z');      // Spanish DNI
-validator.isValidNIE('X1234567L');      // Spanish NIE
-validator.isValidSpanishSSN('...');     // Spanish SSN
-validator.isValidIBAN('ES9121000418...');  // Full MOD-97 validation
+validator.isValidIBAN('ES9121000418...'); // IBAN MOD-97
 ```
 
-**Highlights:**
-- Modulo-based checksum algorithms
-- Full IBAN MOD-97 validation
-- Input normalization
+#### 17. Exception Filter
+[`src/filters/global-exception.filter.ts`](src/filters/global-exception.filter.ts)
+
+Production-grade exception handling with standardized responses.
 
 ---
 
